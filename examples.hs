@@ -4,6 +4,7 @@ module Module where
 -- There are some commands you can type in below, namely:
 
 -- For question 7, sheet 4 -- done with the non-continuation version of the monad:
+-- upfrom 0  ,  upfrom_strict 0
 -- test0, test0_strict
 -- test1
 -- test2
@@ -17,6 +18,8 @@ module Module where
 
 --- ... and then the same examples, done with continuations
 
+-- basically just add "C" to the above, e.g.
+-- upfromC 0, upfrom_strictC 0, ..., out1C, out2C
 
 
 
@@ -69,7 +72,8 @@ instance (Show a) => Show (Command a) where
              where show' 0 _ = "..."
                    show' _ (Done a) = "Done " ++ show a
                    show' n (Out v cmd) = "Out " ++ show v ++ "; " ++ show' (n-1) cmd
-                   show' n (In f) = "In <(0 -> " ++ show' (n-1) (f 0) ++ "), (1 -> " ++ show' (n-1) (f 1) ++ "), ... >"
+                   show' n (In f) = "In <(0 -> " ++ show' (n-1) (f 0) ++ "), 
+                                         (1 -> " ++ show' (n-1) (f 1) ++ "), ... >"
 
 -- We can think of (Out v xm) as representing an output action, showing value v,
 -- where xm is the Command (or part of the protocol) that comes next. 
@@ -96,7 +100,8 @@ instance MyMonad Command where
 -- We'll imitate answers to question 7 with respect to this monad.
 -- However we won't be doing this in an interpreter -- we'll just produce a command
 -- (Done "Nil"), rather than "returning Nil in the interpreter".
--- So we won't make a distinction between a program that returns 42, and a computation that produces "Done 42".
+-- So we won't make a distinction between a program that returns 42,
+-- and a computation that produces "Done 42".
 
 -- 7a 
 
