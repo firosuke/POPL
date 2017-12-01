@@ -1,0 +1,181 @@
+
+CPS-style Fib:
+
+fibk n k =   if n <= 1  then k n   else  
+             fibk (n-1) (\a -> fibk (n-2) (\b -> k (a + b)))
+
+
+Defunctionalised:
+
+fib n k = if n <= 1  then apply k n   else  
+             fib (n-1) (AddFib (n-2) k)
+
+fib n k = if n <= 1  then apply k n   else  
+             fib (n-1) $ AddFib (n-2) $ k
+
+theRealFib n = fib n Id
+
+
+
+Useful:   a $ b $ c …  =   a (b (c … ))
+
+
+-- AddFib m k : continuation says “input a -> calculate mth fib, add to a, then pass to k”
+-- Add a k : it says “input b -> add to a, then pass to k “ 
+
+
+data Cont = Id | AddFib Int Cont | Add Int Cont
+
+apply Id a = a
+apply (AddFib n k) a = fib n (Add a k)
+apply (Add a k) b = apply k (a + b)
+
+
+
+  fib 4 Id
+= fib 3 $ AddFib 2 $ Id
+= fib 2 $ AddFib 1 $ AddFib 2 $ Id
+= fib 1 $ AddFib 0 $ AddFib 1 $ AddFib 2 $ Id
+= apply  (AddFib 0 $ AddFib 1 $ AddFib 2 $ Id) 1       -- fib1 
+= fib 0 $ Add 1    $ AddFib 1 $ AddFib 2 $ Id
+= apply  (Add 1    $ AddFib 1 $ AddFib 2 $ Id) 0       -- fib0 
+= apply             (AddFib 1 $ AddFib 2 $ Id) (1 + 0) -- (fib1 + fib0) = fib2 
+= fib 1 $ Add (1 + 0)         $ AddFib 2 $ Id
+= apply  (Add (1 + 0)         $ AddFib 2 $ Id) 1                  -- fib1 again 
+= apply                        (AddFib 2 $ Id) ((1 + 0) + 1)      -- fib2 + fib1 = fib3 
+=                                  fib 2 $ Add ((1 + 0) + 1) $ Id
+
+...the rest is going to calculate fib2 and then add it to our total, ((1 + 0) + 1) = fib3
+ 
+The evaluation order is the same as the naive one. (I don't simplify (1 + 0) etc. because it's easier to read.)
+
+                            f4 
+=                     f3  + f2 
+=              (f2  + f1) + f2 
+=        ((f1 + f0) + f1) + f2
+=        (( 1 + f0) + f1) + f2
+=        (( 1 +  0) + f1) + f2
+=        (( 1 +  0) +  1) + f2
+etc.
+
+
+
+
+env = { mappings from identifiers “x_i” to v }
+
+v = (\x.e, env) | n | true | false | succ | pred | pos
+
+e = x | \x.e | e(e) | n | true | false | succ | pred | pos | if(e,e,e)
+
+k = Show | ([]e, env):k | (v[]):k | (if([],e,e),env):k
+
+c = [k,v] | <e, env, k>
+
+
+
+
+
+Old transition rules:
+
+<n,env,k>              -> [k, n]
+<x,env,k>              -> [k, env(x)]
+<\x.e,env,k>           -> [k, (\x.e,env)]
+
+<e1(e2),env,k>         -> <e1,env,([]e2, env):k>
+[([]e,env):k, v]       -> <e, env, (v[]):k>
+[(v’[]):k, v] where v’ = (\x.e,env)  
+                       -> <e, (x->v):env, k>
+
+
+New transition rules:
+
+<pos,env,k>           -> [k, pos]
+
+[pos[]:k, n]          -> [k, true]  if n >= 0
+[pos[]:k, n]          -> [k, false] otherwise
+
+
+<if(e1,e2,e3), env, k>   -> <e1, env, ((if([],e2,e3),env):k>
+
+[if([],e2,e3):k, true] -> <e2, env, k>     similarly for false
+
+
+(succ, pred are like pos)
+
+
+Old typing rules for configurations (and one rule for contexts):
+
+
+ㅏ env : Gamma    Gamma ㅏ e : A     ㅏ k : ㄱA
+--------------------------------------------
+                 ㅏ <e, env, k> 
+
+
+             ㅏ v : A     ㅏ k : ㄱA
+--------------------------------------------
+                 ㅏ [k, v]
+
+
+
+ㅏ env : Gamma     Gamma ㅏ v : A -> B       ㅏ k : ㄱB
+-----------------------------------------------------
+               ㅏ (v[]):k   : ㄱA
+
+
+
+Typing the new values, expressions, and contexts:
+Add types bool and int.
+
+Values:
+
+--------------
+ㅏ true : bool     (same for false)
+
+--------------------
+ㅏ pos : int -> bool    (succ, pred similar)
+
+
+Expressions:
+
+--------------------
+Gamma ㅏ pos : int -> bool       (others similar)
+
+
+Gamma ㅏ e1: bool   and  e2, e3 : A
+——--------------------------------
+Gamma ㅏ if(e1,e2,e3) : A
+
+
+Contexts:
+
+ㅏ env : Gamma     Gamma ㅏ e2, e3 : A       ㅏ k : ㄱA
+-----------------------------------------------------
+               ㅏ (if([],e2,e3),env):k   : ㄱbool
+
+
+
+Example:
+
+suppose x=2 in env:
+
+< if(pos(x), pred(x), x), env, k>
+
+-> < pos(x), env,   (if([], …), env):k >
+
+-> < pos, env,      ([]x, env):(if([], …), env):k>
+
+-> [ ([]x, env):(if([], …), env):k,      pos ]
+
+-> < x, env,        (pos[]):(if([], …), env):k>
+
+-> [(pos[]):(if([], …), env):k,    2 ] 
+
+-> [ (if([], …), env):k,           true ]
+
+-> < pred(x), env, k >
+
+… some boring steps omitted …
+
+-> [ (pred[]):k, 2 ]
+
+-> [ k, 1 ]
